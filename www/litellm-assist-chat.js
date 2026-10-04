@@ -12,7 +12,7 @@ const MD_MODES = { chat: "chat", assist: "assist" };
 /* ------------------------------------------------------------------ */
 const STRINGS = {
   en: {
-    welcome: "Ask anything…",
+    welcome: "Ask me anything what you want, I have my ears open…",
     newChat: "New chat",
     message: "Message…",
     send: "Send",
@@ -31,7 +31,7 @@ const STRINGS = {
     usageTotal: "Today",
   },
   de: {
-    welcome: "Frag mich alles…",
+    welcome: "Frag mich alles was Du willst, meine Ohren sind offen…",
     newChat: "Neuer Chat",
     message: "Nachricht…",
     send: "Senden",
