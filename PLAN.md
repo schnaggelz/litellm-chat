@@ -89,7 +89,7 @@ SSE → WS relay line-by-line; heartbeat deltas to survive proxies; mid-stream r
 
 ## 5. Milestones
 
-- **M1 backend** — attach to entry, WS stream + models + history CRUD, storage, options flow. Test via HA WS dev tools.
+- **M1 backend** — ✅ DONE 2026-10-04: attach, WS stream + models + history CRUD, storage, options flow. Full WS test pass (dev/ws_test.py). Note: agx:gemma4:26b cold-loads >60 s — slow for tests, fine for use.
 - **M2 card MVP** — chat mode streaming, model picker, stop, markdown, minimal history.
 - **M3 polish** — assist mode, panel mode, mobile ergonomics, edit/regenerate.
 - **M4 HACS** — hacs.json, README, tag release.
@@ -102,8 +102,12 @@ SSE → WS relay line-by-line; heartbeat deltas to survive proxies; mid-stream r
 - Lovelace YAML mode can't auto-inject resource → README fallback.
 - This repo = full HA config, not HACS-shaped → subtree export for release.
 
-## 7. Open questions
+## 7. Decisions
 
-1. Default mode for new conversations: chat or assist? *(pending)*
-2. History shared across HA users or per-user isolation? *(pending)*
-3. Multimodal (images) needed later or never? *(pending)*
+1. Default mode for new conversations: **chat** (assist per conversation toggle).
+2. History: **per HA user**, single Store file keyed by user_id (small code).
+3. Multimodal: **later** (M5+).
+
+## 8. Open questions
+
+- none

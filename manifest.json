@@ -1,0 +1,18 @@
+{
+  "domain": "litellm_assist",
+  "name": "LiteLLM Assist",
+  "codeowners": ["@homeassistant-local"],
+  "after_dependencies": [
+    "litellm",
+    "conversation",
+    "frontend",
+    "lovelace",
+    "websocket_api",
+    "http"
+  ],
+  "documentation": "https://github.com/local/litellm_assist",
+  "iot_class": "local_polling",
+  "requirements": [],
+  "config_flow": true,
+  "version": "0.1.0"
+}

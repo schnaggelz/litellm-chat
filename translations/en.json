@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "LiteLLM Assist",
+        "description": "Adds a chat card that uses your existing LiteLLM integration (client, models and conversation agents). Nothing to configure here.",
+        "data": {}
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only a single instance is supported."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "LiteLLM Assist options",
+        "data": {
+          "default_mode": "Default mode for new conversations",
+          "per_user_history": "Keep chat history separate per HA user",
+          "max_conversations": "Maximum conversations kept per user"
+        },
+        "data_description": {
+          "default_mode": "Chat streams with any LiteLLM model; Assist routes through your conversation agents with home control.",
+          "per_user_history": "When disabled, all users share one history.",
+          "max_conversations": "Oldest conversations are pruned beyond this limit."
+        }
+      }
+    }
+  }
+}
