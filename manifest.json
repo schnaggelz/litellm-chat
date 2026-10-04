@@ -8,7 +8,8 @@
     "frontend",
     "lovelace",
     "websocket_api",
-    "http"
+    "http",
+    "panel_custom"
   ],
   "documentation": "https://github.com/local/litellm_assist",
   "iot_class": "local_polling",

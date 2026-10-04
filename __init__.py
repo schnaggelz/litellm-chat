@@ -87,6 +87,7 @@ async def async_setup_entry(
         ]
     )
     await _register_lovelace_resource(hass)
+    await _register_sidebar_panel(hass)
 
     if not await _attach(hass, entry):
         LOGGER.warning(
@@ -111,6 +112,22 @@ async def async_unload_entry(
         await runtime.storage.async_close()
     entry.runtime_data = None
     return True
+
+
+async def _register_sidebar_panel(hass: HomeAssistant) -> None:
+    """Register the fullscreen Chat panel in the sidebar."""
+    from homeassistant.components import panel_custom
+
+    await panel_custom.async_register_panel(
+        hass,
+        frontend_url_path="litellm-assist",
+        webcomponent_name="litellm-assist-panel",
+        sidebar_title="Chat",
+        sidebar_icon="mdi:chat",
+        module_url=f"{STATIC_URL}/litellm-assist-panel.js",
+        require_admin=False,
+    )
+    LOGGER.info("Registered sidebar panel")
 
 
 async def _register_lovelace_resource(hass: HomeAssistant) -> None:
