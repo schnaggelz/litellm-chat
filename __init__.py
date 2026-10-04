@@ -74,6 +74,9 @@ async def async_setup_entry(
     runtime = entry.runtime_data = RuntimeData()
     runtime.storage = ChatStorage(hass, entry)
 
+    # Ensure the asset dir exists before HA checks it at registration time.
+    (Path(__file__).parent / STATIC_PATH).mkdir(exist_ok=True)
+
     await hass.http.async_register_static_paths(
         [
             StaticPathConfig(

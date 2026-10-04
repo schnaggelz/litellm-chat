@@ -90,7 +90,7 @@ SSE → WS relay line-by-line; heartbeat deltas to survive proxies; mid-stream r
 ## 5. Milestones
 
 - **M1 backend** — ✅ DONE 2026-10-04: attach, WS stream + models + history CRUD, storage, options flow. Full WS test pass (dev/ws_test.py). Note: agx:gemma4:26b cold-loads >60 s — slow for tests, fine for use.
-- **M2 card MVP** — chat mode streaming, model picker, stop, markdown, minimal history.
+- **M2 card MVP** — ✅ DONE 2026-10-04: `www/litellm-assist-chat.js` (vendored lit 3.3.2 ESM in `www/lit.js`; no bare `lit` importmap in HA). Streaming, model picker, stop, markdown-lite, persistence, dark-theme fixes. Verified: fullscreen panel view on dashboard. Gaps → M3.
 - **M3 polish** — assist mode, panel mode, mobile ergonomics, edit/regenerate.
 - **M4 HACS** — hacs.json, README, tag release.
 - **M5 later** — tool-bridge (llm API tools on direct chat mode), cost/usage sensor, multimodal input, per-conversation params UI.
