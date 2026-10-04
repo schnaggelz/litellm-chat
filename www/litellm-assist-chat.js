@@ -447,12 +447,6 @@ class LiteLLMAssistChat extends LitElement {
     return STRINGS[lang] || STRINGS.en;
   }
 
-  get _usageToday() {
-    const s = this.hass?.states["sensor.litellm_assist_usage"];
-    if (!s || s.state === "unavailable" || s.state === "unknown") return "–";
-    return `${s.state} ${s.attributes?.unit_of_measurement ?? ""}`.trim();
-  }
-
   setConfig(config) {
     this.config = {
       title: "Chat",
@@ -776,11 +770,6 @@ class LiteLLMAssistChat extends LitElement {
       this._scrollEnd();
     } else if (event.type === "usage") {
       this._lastUsage = event;
-      if (typeof event.cost === "number") {
-        this._lastUsageDebug = `usage: in=${event.prompt_tokens} out=${event.completion_tokens} cost=${event.cost}`;
-      } else if (event.prompt_tokens != null) {
-        this._lastUsageDebug = `usage: in=${event.prompt_tokens} out=${event.completion_tokens} cost=not reported by proxy`;
-      }
     } else if (event.type === "cancelled") {
       this._finishStream(true);
     } else if (event.type === "done") {
@@ -848,11 +837,37 @@ class LiteLLMAssistChat extends LitElement {
   _usageLabel(msg) {
     const u = msg.usage;
     if (!u) return "";
-    const parts = [`${u.prompt_tokens ?? 0}→${u.completion_tokens ?? 0} tok`];
+    const parts = [
+      `${u.prompt_tokens ?? 0}→${u.completion_tokens ?? 0} tokens`,
+    ];
     if (typeof u.cost === "number" && u.cost > 0) {
-      parts.push(`$${u.cost.toFixed(4)}`);
+      parts.push(`${u.cost.toFixed(6)} ${this._currency()}`);
     }
     return parts.join(" · ");
+  }
+
+  _currency() {
+    return this.hass?.config?.currency || "USD";
+  }
+
+  _fmtCost(n) {
+    return Number(n).toFixed(6);
+  }
+
+  _liveStatus() {
+    const u = this._lastUsage;
+    if (!u || u.prompt_tokens == null) return "";
+    const tokens = `${u.prompt_tokens ?? 0}→${u.completion_tokens ?? 0} tokens`;
+    const today = this.hass?.states["sensor.litellm_assist_usage"];
+    const todayVal =
+      today && !"unknown unavailable".includes(today.state)
+        ? `${this._fmtCost(today.state)} ${today.attributes?.unit_of_measurement || this._currency()}`
+        : "–";
+    const cost =
+      typeof u.cost === "number" && u.cost > 0
+        ? ` · ${this._fmtCost(u.cost)} ${this._currency()}`
+        : "";
+    return `${tokens}${cost} · ${this.t.usageTotal}: ${todayVal}`;
   }
 
   _bubble(msg, streaming) {
@@ -955,12 +970,9 @@ class LiteLLMAssistChat extends LitElement {
         </div>
 
         ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
-        ${this._lastUsageDebug
-          ? html`<div class="usage" style="padding:0 12px 4px;text-align:left">${this._lastUsageDebug}</div>`
-          : nothing}
-        ${this._lastUsageDebug
+        ${this._liveStatus()
           ? html`<div class="usage" style="padding:0 12px 4px;text-align:left">
-              ${this.t.usageTotal}: ${this._usageToday}
+              ${this._liveStatus()}
             </div>`
           : nothing}
 
