@@ -137,8 +137,11 @@ async def ws_stream(
         for m in conv["messages"]
         if m.get("role") in ("system", "user", "assistant")
     ]
-    if conv.get("system_prompt"):
-        messages.insert(0, {"role": "system", "content": conv["system_prompt"]})
+    system_prompt = conv.get("system_prompt") or runtime.entry.options.get(
+        "default_system_prompt"
+    )
+    if system_prompt:
+        messages.insert(0, {"role": "system", "content": system_prompt})
 
     cancel = asyncio.Event()
     _cancel_registry[conv_id] = cancel
@@ -292,6 +295,8 @@ async def ws_conversations(
         connection.send_result(msg["id"], {"conversation": conv})
         return
     if action == "create":
+        if not data.get("system_prompt"):
+            data["system_prompt"] = runtime.entry.options.get("default_system_prompt")
         conv = await storage.async_create(user_id, data)
         connection.send_result(msg["id"], {"conversation": conv})
         return

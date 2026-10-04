@@ -23,6 +23,7 @@ from .storage import ChatStorage
 class RuntimeData:
     """Runtime data for the config entry."""
 
+    entry: ConfigEntry | None = None
     client: object | None = None  # openai.AsyncOpenAI from litellm coordinator
     storage: ChatStorage | None = None
 
@@ -71,7 +72,7 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: LitellmAssistConfigEntry
 ) -> bool:
     """Set up LiteLLM Assist from a config entry."""
-    runtime = entry.runtime_data = RuntimeData()
+    runtime = entry.runtime_data = RuntimeData(entry=entry)
     runtime.storage = ChatStorage(hass, entry)
 
     # Ensure the asset dir exists before HA checks it at registration time.

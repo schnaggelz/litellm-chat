@@ -47,13 +47,16 @@ class LiteLLMAssistChat extends LitElement {
       hass: { state: true },
       config: { state: true },
       _models: { state: true },
+      _agents: { state: true },
       _conv: { state: true },
       _convs: { state: true },
       _streamText: { state: true },
       _streaming: { state: true },
+      _assistBusy: { state: true },
       _draft: { state: true },
       _error: { state: true },
       _model: { state: true },
+      _agent: { state: true },
     };
   }
 
@@ -104,6 +107,19 @@ class LiteLLMAssistChat extends LitElement {
         border: 1px solid var(--divider-color, rgba(128, 128, 128, 0.3));
         border-radius: 8px;
         padding: 4px 6px;
+      }
+      select.mode {
+        margin-left: auto;
+        max-width: none;
+        flex: 0 0 auto;
+      }
+      .thinking {
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.5;
+        }
       }
       select option {
         background: var(--card-background-color, #111);
@@ -220,13 +236,16 @@ class LiteLLMAssistChat extends LitElement {
   constructor() {
     super();
     this._models = [];
+    this._agents = [];
     this._convs = [];
     this._conv = null;
     this._streamText = "";
     this._streaming = false;
+    this._assistBusy = false;
     this._draft = "";
     this._error = "";
     this._model = "";
+    this._agent = "";
     this._unsub = null;
   }
 
@@ -257,16 +276,22 @@ class LiteLLMAssistChat extends LitElement {
     try {
       const res = await this.hass.callWS({ type: "litellm_assist/models" });
       this._models = res.models;
+      this._agents = res.agents;
       if (!this._model) {
         this._model =
           this.config.default_model && this._models.includes(this.config.default_model)
             ? this.config.default_model
             : (res.models[0] ?? "");
       }
+      if (!this._agent && res.agents.length) this._agent = res.agents[0].entity_id;
       await this._loadConvs();
     } catch (e) {
       this._error = `models: ${e.message || e}`;
     }
+  }
+
+  _agentName(id) {
+    return this._agents.find((a) => a.entity_id === id)?.name ?? id;
   }
 
   async _loadConvs() {
@@ -288,25 +313,53 @@ class LiteLLMAssistChat extends LitElement {
     this._scrollEnd();
   }
 
-  async _newConv() {
+  async _newConv(mode) {
+    const useMode = mode || "chat";
     const res = await this.hass.callWS({
       type: "litellm_assist/conversations",
       action: "create",
-      data: { mode: "chat", model: this._model },
+      data: {
+        mode: useMode,
+        model: this._model,
+        agent_id: useMode === "assist" ? this._agent : undefined,
+      },
     });
     this._conv = res.conversation;
     this._convs = [ { ...res.conversation, messages: undefined }, ...this._convs ];
     this._error = "";
   }
 
+  async _setMode(mode) {
+    if (!this._conv) {
+      await this._newConv(mode);
+      return;
+    }
+    this._conv = {
+      ...this._conv,
+      mode,
+      agent_id: mode === "assist" ? this._agent : this._conv.agent_id,
+    };
+    await this.hass.callWS({
+      type: "litellm_assist/conversations",
+      action: "update",
+      conversation_id: this._conv.id,
+      data: { mode, agent_id: this._conv.agent_id },
+    });
+  }
+
   async _send() {
     const text = this._draft.trim();
-    if (!text || this._streaming) return;
-    if (!this._model) {
+    const mode = this._conv?.mode || "chat";
+    if (!text || this._streaming || this._assistBusy) return;
+    if (mode === "chat" && !this._model) {
       this._error = "No model selected";
       return;
     }
-    if (!this._conv) await this._newConv();
+    if (mode === "assist" && !this._agent) {
+      this._error = "No Assist agent selected";
+      return;
+    }
+    if (!this._conv) await this._newConv(mode);
     const conv = this._conv;
     const draft = text;
     this._draft = "";
@@ -317,6 +370,34 @@ class LiteLLMAssistChat extends LitElement {
     ];
     if (conv.title === "New chat") conv.title = draft.slice(0, 40);
     this._streamText = "";
+    this._scrollEnd();
+
+    if (mode === "assist") {
+      this._assistBusy = true;
+      this._scrollEnd();
+      try {
+        const result = await this.hass.callWS({
+          type: "litellm_assist/assist_process",
+          conversation_id: conv.id,
+          agent_id: this._agent,
+          text: draft,
+        });
+        conv.messages.push({
+          role: "assistant",
+          content: result.response?.speech?.plain?.speech ?? "(no answer)",
+          ts: new Date().toISOString(),
+          agent_id: this._agent,
+        });
+        await this._loadConvs();
+      } catch (e) {
+        this._error = e.message || String(e);
+      } finally {
+        this._assistBusy = false;
+        this._scrollEnd();
+      }
+      return;
+    }
+
     this._streaming = true;
     this._scrollEnd();
 
@@ -404,40 +485,72 @@ class LiteLLMAssistChat extends LitElement {
   render() {
     if (!this.hass) return html``;
     const conv = this._conv;
+    const mode = conv?.mode || "chat";
     const msgs = conv?.messages ?? [];
     const streamingMsg = this._streaming
       ? { role: "assistant", content: this._streamText }
       : null;
+    const busy = this._streaming || this._assistBusy;
 
     return html`
       <div class="wrap" style=${this._heightStyle()}>
         <header>
           <span class="title">${this.config.title}</span>
           <select
-            .value=${this._model}
-            @change=${(e) => (this._model = e.target.value)}
-            ?disabled=${this._streaming}
+            class="mode"
+            .value=${mode}
+            @change=${(e) => this._setMode(e.target.value)}
+            ?disabled=${busy}
           >
-            ${this._models.map(
-              (m) => html`<option value=${m} ?selected=${m === this._model}>${m}</option>`
-            )}
+            <option value="chat" ?selected=${mode === "chat"}>💬 Chat</option>
+            <option value="assist" ?selected=${mode === "assist"}>🏠 Assist</option>
           </select>
+          ${mode === "chat"
+            ? html`<select
+                .value=${this._model}
+                @change=${(e) => (this._model = e.target.value)}
+                ?disabled=${busy}
+              >
+                ${this._models.map(
+                  (m) => html`<option value=${m} ?selected=${m === this._model}>${m}</option>`
+                )}
+              </select>`
+            : html`<select
+                .value=${this._agent}
+                @change=${(e) => (this._agent = e.target.value)}
+                ?disabled=${busy}
+              >
+                ${this._agents.map(
+                  (a) =>
+                    html`<option
+                      value=${a.entity_id}
+                      ?selected=${a.entity_id === this._agent}
+                    >
+                      ${a.name}
+                    </option>`
+                )}
+              </select>`}
           <button
             class="iconbtn"
             title="New chat"
-            @click=${this._newConv}
-            ?disabled=${this._streaming}
+            @click=${() => this._newConv()}
+            ?disabled=${busy}
           >
             ＋
           </button>
         </header>
 
         <div class="msgs">
-          ${msgs.length === 0 && !streamingMsg
+          ${msgs.length === 0 && !streamingMsg && !this._assistBusy
             ? html`<div class="empty">${this.config.welcome ?? "Ask anything…"}</div>`
             : nothing}
           ${msgs.map((m) => this._bubble(m, false))}
           ${streamingMsg ? this._bubble(streamingMsg, true) : nothing}
+          ${this._assistBusy
+            ? html`<div class="row assistant">
+                <div class="bubble thinking">🏠 thinking…</div>
+              </div>`
+            : nothing}
         </div>
 
         ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
@@ -446,7 +559,8 @@ class LiteLLMAssistChat extends LitElement {
           <button
             class="iconbtn"
             title=${this._streaming ? "Stop" : "New chat"}
-            @click=${this._streaming ? this._stop : this._newConv}
+            @click=${this._streaming ? this._stop : () => this._newConv()}
+            ?disabled=${this._assistBusy}
           >
             ${this._streaming ? "⏹" : "＋"}
           </button>
@@ -461,7 +575,7 @@ class LiteLLMAssistChat extends LitElement {
             class="iconbtn"
             title="Send"
             @click=${this._send}
-            ?disabled=${this._streaming || !this._draft.trim()}
+            ?disabled=${busy || !this._draft.trim()}
           >
             ➤
           </button>

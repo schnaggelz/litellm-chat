@@ -14,10 +14,13 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
 )
 
 from .const import (
     CONF_DEFAULT_MODE,
+    CONF_DEFAULT_SYSTEM_PROMPT,
     CONF_MAX_CONVERSATIONS,
     CONF_PER_USER_HISTORY,
     DEFAULT_MAX_CONVERSATIONS,
@@ -39,6 +42,9 @@ OPTIONS_SCHEMA = vol.Schema(
         vol.Required(
             CONF_MAX_CONVERSATIONS, default=DEFAULT_MAX_CONVERSATIONS
         ): vol.All(vol.Coerce(int), vol.Range(min=1, max=500)),
+        vol.Optional(CONF_DEFAULT_SYSTEM_PROMPT): TextSelector(
+            TextSelectorConfig(multiline=True)
+        ),
     }
 )
 
