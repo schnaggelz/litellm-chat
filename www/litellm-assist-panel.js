@@ -52,7 +52,9 @@ class LiteLLMAssistPanel extends LitElement {
               @click=${this._toggleMenu}
             ></ha-icon-button>`
           : nothing}
-        <span slot="title">Chat</span>
+        <span slot="title" style="display:flex;align-items:center;gap:8px">
+          <ha-icon icon="mdi:star-face"></ha-icon> Chat
+        </span>
         <litellm-assist-chat
           .hass=${this.hass}
           .config=${{ title: "Chat", height: "full" }}

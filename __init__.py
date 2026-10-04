@@ -124,7 +124,7 @@ async def _register_sidebar_panel(hass: HomeAssistant) -> None:
         frontend_url_path="litellm-assist",
         webcomponent_name="litellm-assist-panel",
         sidebar_title="Chat",
-        sidebar_icon="mdi:chat",
+        sidebar_icon="mdi:star-face",
         module_url=f"{STATIC_URL}/litellm-assist-panel.js",
         require_admin=False,
     )

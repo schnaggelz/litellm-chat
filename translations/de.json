@@ -1,0 +1,33 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "LiteLLM Assist",
+        "description": "Fügt eine Chat-Karte hinzu, die deine bestehende LiteLLM-Integration nutzt (Client, Modelle und Konversations-Agenten). Hier ist nichts zu konfigurieren.",
+        "data": {}
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Nur eine Instanz wird unterstützt."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "LiteLLM Assist Optionen",
+        "data": {
+          "default_mode": "Standardmodus für neue Unterhaltungen",
+          "per_user_history": "Chat-Verlauf pro HA-Benutzer trennen",
+          "max_conversations": "Maximale Anzahl Unterhaltungen pro Benutzer",
+          "default_system_prompt": "Standard-Systemprompt (Chat-Modus)"
+        },
+        "data_description": {
+          "default_mode": "Chat streamt mit jedem LiteLLM-Modell; Assist läuft über deine Konversations-Agenten mit Haussteuerung.",
+          "per_user_history": "Wenn deaktiviert, teilen sich alle Benutzer einen Verlauf.",
+          "max_conversations": "Älteste Unterhaltungen werden oberhalb dieses Limits gelöscht.",
+          "default_system_prompt": "Persona/Systemprompt für Chat-Modus-Unterhaltungen (Assist-Modus nutzt den Prompt des jeweiligen Agenten)."
+        }
+      }
+    }
+  }
+}
