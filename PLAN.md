@@ -91,7 +91,7 @@ SSE → WS relay line-by-line; heartbeat deltas to survive proxies; mid-stream r
 
 - **M1 backend** — ✅ DONE 2026-10-04: attach, WS stream + models + history CRUD, storage, options flow. Full WS test pass (dev/ws_test.py). Note: agx:gemma4:26b cold-loads >60 s — slow for tests, fine for use.
 - **M2 card MVP** — ✅ DONE 2026-10-04: `www/litellm-assist-chat.js` (vendored lit 3.3.2 ESM in `www/lit.js`; no bare `lit` importmap in HA). Streaming, model picker, stop, markdown-lite, persistence, dark-theme fixes. Verified: fullscreen panel view on dashboard. Gaps → M3.
-- **M3 polish** — 3.1 sidebar panel ✅ DONE 2026-10-04 (`panel_custom.async_register_panel` is a coroutine in 2026.9 — must be awaited; panel module must import card module itself since panel pages skip Lovelace resources). Next: 3.3 assist mode → 3.5 mobile polish.
+- **M3 polish** — 3.1 sidebar panel ✅ 2026-10-04 (`panel_custom.async_register_panel` is a coroutine in 2026.9 — must be awaited; panel module must import card module itself since panel pages skip Lovelace resources); 3.3 assist mode + default system prompt option ✅; 3.4 per-user last model/agent prefs ✅; 3.5 mobile polish + panel app bar (hamburger on narrow, content slotted inside `ha-top-app-bar-fixed`) ✅. Remaining: history drawer, card editor.
 - **M4 HACS** — hacs.json, README, tag release.
 - **M5 later** — tool-bridge (llm API tools on direct chat mode), cost/usage sensor, multimodal input, per-conversation params UI.
 

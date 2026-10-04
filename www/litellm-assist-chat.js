@@ -128,6 +128,7 @@ class LiteLLMAssistChat extends LitElement {
       .msgs {
         flex: 1;
         overflow-y: auto;
+        overscroll-behavior: contain;
         padding: 12px;
         display: flex;
         flex-direction: column;
@@ -209,6 +210,11 @@ class LiteLLMAssistChat extends LitElement {
         max-height: 120px;
         min-height: 40px;
         line-height: 1.4;
+        /* 16px prevents iOS focus zoom */
+        font-size: 16px;
+      }
+      select {
+        font-size: 16px;
       }
       .iconbtn {
         border: none;
@@ -219,6 +225,13 @@ class LiteLLMAssistChat extends LitElement {
         color: var(--primary-color);
         font-size: 18px;
         line-height: 1;
+      }
+      @media (pointer: coarse) {
+        .iconbtn {
+          min-width: 44px;
+          min-height: 44px;
+          font-size: 20px;
+        }
       }
       .iconbtn:disabled {
         opacity: 0.4;
@@ -378,6 +391,10 @@ class LiteLLMAssistChat extends LitElement {
     const draft = text;
     this._draft = "";
     this._error = "";
+    requestAnimationFrame(() => {
+      const ta = this.renderRoot?.querySelector("textarea");
+      if (ta) ta.style.height = "auto";
+    });
     conv.messages = [
       ...(conv.messages || []),
       { role: "user", content: draft, ts: new Date().toISOString() },
@@ -476,6 +493,20 @@ class LiteLLMAssistChat extends LitElement {
     requestAnimationFrame(() => {
       const el = this.renderRoot?.querySelector(".msgs");
       if (el) el.scrollTop = el.scrollHeight;
+    });
+  }
+
+  _autoGrow(e) {
+    this._draft = e.target.value;
+    const ta = e.target;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+  }
+
+  _focusComposer(e) {
+    // Keep the composer visible when the mobile keyboard opens.
+    requestAnimationFrame(() => {
+      e.target.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
   }
 
@@ -582,7 +613,8 @@ class LiteLLMAssistChat extends LitElement {
             rows="1"
             placeholder="Message…"
             .value=${this._draft}
-            @input=${(e) => (this._draft = e.target.value)}
+            @input=${this._autoGrow}
+            @focus=${this._focusComposer}
             @keydown=${this._keyDown}
           ></textarea>
           <button
