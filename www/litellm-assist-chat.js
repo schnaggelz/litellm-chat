@@ -28,6 +28,7 @@ const STRINGS = {
     rename: "Rename",
     del: "Delete",
     delConfirm: "Delete?",
+    usageTotal: "Today",
   },
   de: {
     welcome: "Frag mich alles…",
@@ -46,6 +47,7 @@ const STRINGS = {
     rename: "Umbenennen",
     del: "Löschen",
     delConfirm: "Löschen?",
+    usageTotal: "Heute",
   },
 };
 
@@ -201,6 +203,20 @@ class LiteLLMAssistChat extends LitElement {
       }
       .row.assistant .bubble {
         border-bottom-left-radius: 4px;
+      }
+      .col {
+        display: flex;
+        flex-direction: column;
+        max-width: 85%;
+      }
+      .col .bubble {
+        max-width: 100%;
+      }
+      .usage {
+        font-size: 0.72em;
+        opacity: 0.6;
+        padding: 2px 6px 0;
+        text-align: right;
       }
       .bubble .code-block {
         background: var(--markdown-code-background-color, rgba(0, 0, 0, 0.25));
@@ -429,6 +445,12 @@ class LiteLLMAssistChat extends LitElement {
   get t() {
     const lang = (this.hass?.language || "en").slice(0, 2).toLowerCase();
     return STRINGS[lang] || STRINGS.en;
+  }
+
+  get _usageToday() {
+    const s = this.hass?.states["sensor.litellm_assist_usage"];
+    if (!s || s.state === "unavailable" || s.state === "unknown") return "–";
+    return `${s.state} ${s.attributes?.unit_of_measurement ?? ""}`.trim();
   }
 
   setConfig(config) {
@@ -754,6 +776,11 @@ class LiteLLMAssistChat extends LitElement {
       this._scrollEnd();
     } else if (event.type === "usage") {
       this._lastUsage = event;
+      if (typeof event.cost === "number") {
+        this._lastUsageDebug = `usage: in=${event.prompt_tokens} out=${event.completion_tokens} cost=${event.cost}`;
+      } else if (event.prompt_tokens != null) {
+        this._lastUsageDebug = `usage: in=${event.prompt_tokens} out=${event.completion_tokens} cost=not reported by proxy`;
+      }
     } else if (event.type === "cancelled") {
       this._finishStream(true);
     } else if (event.type === "done") {
@@ -773,6 +800,7 @@ class LiteLLMAssistChat extends LitElement {
         content: this._streamText,
         ts: new Date().toISOString(),
         model: this._model,
+        usage: this._lastUsage,
       });
     }
     this._streamText = "";
@@ -817,12 +845,28 @@ class LiteLLMAssistChat extends LitElement {
     }
   }
 
+  _usageLabel(msg) {
+    const u = msg.usage;
+    if (!u) return "";
+    const parts = [`${u.prompt_tokens ?? 0}→${u.completion_tokens ?? 0} tok`];
+    if (typeof u.cost === "number" && u.cost > 0) {
+      parts.push(`$${u.cost.toFixed(4)}`);
+    }
+    return parts.join(" · ");
+  }
+
   _bubble(msg, streaming) {
+    const usage = !streaming ? this._usageLabel(msg) : "";
     return html`<div class="row ${msg.role}">
-      <div class="bubble">
-        ${streaming
-          ? html`${msg.content}<span class="cursor"></span>`
-          : unsafeHTMLLite(mdLite(msg.content))}
+      <div class="col">
+        <div class="bubble">
+          ${streaming
+            ? html`${msg.content}<span class="cursor"></span>`
+            : unsafeHTMLLite(mdLite(msg.content))}
+        </div>
+        ${usage
+          ? html`<div class="usage">${usage}</div>`
+          : nothing}
       </div>
     </div>`;
   }
@@ -911,6 +955,14 @@ class LiteLLMAssistChat extends LitElement {
         </div>
 
         ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
+        ${this._lastUsageDebug
+          ? html`<div class="usage" style="padding:0 12px 4px;text-align:left">${this._lastUsageDebug}</div>`
+          : nothing}
+        ${this._lastUsageDebug
+          ? html`<div class="usage" style="padding:0 12px 4px;text-align:left">
+              ${this.t.usageTotal}: ${this._usageToday}
+            </div>`
+          : nothing}
 
         <div class="composer">
           <button

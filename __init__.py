@@ -102,6 +102,7 @@ async def async_setup_entry(
     from . import websocket_api  # noqa: F401
 
     websocket_api.async_register(hass)
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
 
 
@@ -109,6 +110,7 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: LitellmAssistConfigEntry
 ) -> bool:
     """Unload a config entry."""
+    await hass.config_entries.async_unload_platforms(entry, ["sensor"])
     if (runtime := entry.runtime_data) and runtime.storage:
         await runtime.storage.async_close()
     entry.runtime_data = None

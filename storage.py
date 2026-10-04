@@ -7,6 +7,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_MAX_CONVERSATIONS,
@@ -171,3 +172,35 @@ class ChatStorage:
         prefs.update(updates)
         await self._save()
         return dict(prefs)
+
+    # -- usage (proxy-reported cost only) -------------------------------------
+
+    async def async_add_usage(
+        self, user_id: str | None, model: str, usage: dict[str, Any]
+    ) -> None:
+        """Accumulate one exchange into the user's daily usage bucket."""
+        data = await self._ensure_loaded()
+        usage_root = data.setdefault("usage", {})
+        user_usage = usage_root.setdefault(user_id or SHARED_BUCKET, {})
+        day = dt_util.now().date().isoformat()
+        bucket = user_usage.setdefault(
+            day, {"in": 0, "out": 0, "cost": 0.0, "by_model": {}}
+        )
+        bucket["in"] += usage.get("prompt_tokens", 0)
+        bucket["out"] += usage.get("completion_tokens", 0)
+        cost = usage.get("cost")
+        if isinstance(cost, (int, float)):
+            bucket["cost"] = round(bucket["cost"] + cost, 6)
+        model_bucket = bucket["by_model"].setdefault(
+            model, {"in": 0, "out": 0, "cost": 0.0}
+        )
+        model_bucket["in"] += usage.get("prompt_tokens", 0)
+        model_bucket["out"] += usage.get("completion_tokens", 0)
+        if isinstance(cost, (int, float)):
+            model_bucket["cost"] = round(model_bucket["cost"] + cost, 6)
+        await self._save()
+
+    async def async_get_usage(self) -> dict[str, Any]:
+        """Return the whole usage tree (all users, all days)."""
+        data = await self._ensure_loaded()
+        return data.get("usage", {})

@@ -25,6 +25,9 @@ WS_PREFS = f"{WS_PREFIX}/prefs"
 STORAGE_KEY = f"{DOMAIN}/conversations"
 STORAGE_VERSION = 1
 
+# Dispatcher signal: usage was recorded, sensors should refresh
+SIGNAL_USAGE_UPDATED = f"{DOMAIN}_usage_updated"
+
 # Options
 CONF_MAX_CONVERSATIONS = "max_conversations"
 CONF_PER_USER_HISTORY = "per_user_history"

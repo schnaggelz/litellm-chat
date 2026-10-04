@@ -78,6 +78,8 @@ async def stream_chat(
                     "type": "usage",
                     "prompt_tokens": usage.prompt_tokens or 0,
                     "completion_tokens": usage.completion_tokens or 0,
+                    # LiteLLM proxy reports cost when it knows model pricing.
+                    "cost": getattr(usage, "cost", None),
                 }
         yield {"type": "done"}
     except asyncio.CancelledError:

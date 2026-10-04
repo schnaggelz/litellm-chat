@@ -12,12 +12,14 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from . import RuntimeData
 from .api import LiteLLMAPIError, list_models, stream_chat
 from .const import (
     LOGGER,
     MODE_ASSIST,
+    SIGNAL_USAGE_UPDATED,
     WS_ASSIST_PROCESS,
     WS_CANCEL_STREAM,
     WS_CONVERSATIONS,
@@ -147,6 +149,7 @@ async def ws_stream(
 
     cancel = asyncio.Event()
     _cancel_registry[conv_id] = cancel
+    usage_accum: dict[str, Any] | None = None
     try:
         assistant_content: list[str] = []
         try:
@@ -160,6 +163,8 @@ async def ws_stream(
             ):
                 if event["type"] == "delta":
                     assistant_content.append(event["content"])
+                elif event["type"] == "usage":
+                    usage_accum = event
                 connection.send_event(msg["id"], event)
         except LiteLLMAPIError as err:
             # Keep whatever the model produced before failing.
@@ -179,14 +184,19 @@ async def ws_stream(
         if cancel.is_set():
             connection.send_event(msg["id"], {"type": "cancelled"})
         if assistant_content:
-            conv["messages"].append(
-                {
-                    "role": "assistant",
-                    "content": "".join(assistant_content),
-                    "ts": _now(),
-                    "model": msg["model"],
+            msg_record = {
+                "role": "assistant",
+                "content": "".join(assistant_content),
+                "ts": _now(),
+                "model": msg["model"],
+            }
+            if usage_accum is not None:
+                msg_record["usage"] = {
+                    k: usage_accum[k] for k in ("prompt_tokens", "completion_tokens", "cost") if k in usage_accum
                 }
-            )
+                await runtime.storage.async_add_usage(user_id, msg["model"], usage_accum)
+                async_dispatcher_send(hass, SIGNAL_USAGE_UPDATED)
+            conv["messages"].append(msg_record)
             await runtime.storage.async_update(user_id, conv_id, conv)
             await runtime.storage.async_set_prefs(user_id, {"model": msg["model"]})
         connection.send_result(
