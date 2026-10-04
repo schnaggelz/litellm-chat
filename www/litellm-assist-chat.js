@@ -24,6 +24,10 @@ const STRINGS = {
     modeChat: "💬 Chat",
     modeAssist: "🏠 Assist",
     modelsError: "models",
+    chats: "Chats",
+    rename: "Rename",
+    del: "Delete",
+    delConfirm: "Delete?",
   },
   de: {
     welcome: "Frag mich alles…",
@@ -38,6 +42,10 @@ const STRINGS = {
     modeChat: "💬 Chat",
     modeAssist: "🏠 Assist",
     modelsError: "Modelle",
+    chats: "Chats",
+    rename: "Umbenennen",
+    del: "Löschen",
+    delConfirm: "Löschen?",
   },
 };
 
@@ -277,6 +285,123 @@ class LiteLLMAssistChat extends LitElement {
         text-align: center;
         padding: 24px;
       }
+      .body {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+        position: relative;
+      }
+      .chatcol {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+      }
+      .drawer {
+        width: 0;
+        overflow: hidden;
+        background: var(--secondary-background-color, rgba(0, 0, 0, 0.08));
+        transition: width 0.2s ease;
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+      }
+      .drawer.open {
+        width: 240px;
+        border-right: 1px solid var(--divider-color, rgba(128, 128, 128, 0.2));
+      }
+      @media (max-width: 767px) {
+        .drawer.open {
+          position: absolute;
+          inset: 0;
+          width: auto;
+          z-index: 10;
+          box-shadow: 0 0 24px rgba(0, 0, 0, 0.4);
+          border-right: none;
+        }
+      }
+      .drawer-head {
+        display: flex;
+        align-items: center;
+        padding: 8px 10px 4px;
+        font-weight: 600;
+        gap: 6px;
+      }
+      .drawer-list {
+        flex: 1;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 4px 6px 12px;
+      }
+      .item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        cursor: pointer;
+      }
+      .item:hover {
+        background: var(--secondary-background-color, rgba(128, 128, 128, 0.15));
+      }
+      .item.active {
+        background: var(--primary-color);
+        color: var(--text-primary-color, #fff);
+      }
+      .item .meta {
+        flex: 1;
+        min-width: 0;
+      }
+      .item .ctitle {
+        font-size: 0.95em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .item .cdate {
+        font-size: 0.75em;
+        opacity: 0.7;
+      }
+      .item input {
+        flex: 1;
+        min-width: 0;
+        font: inherit;
+        font-size: 0.95em;
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid var(--divider-color, rgba(128, 128, 128, 0.4));
+        color: inherit;
+        padding: 2px 0;
+      }
+      .item .mini {
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        color: inherit;
+        opacity: 0.6;
+        padding: 4px;
+        border-radius: 6px;
+        font-size: 14px;
+        line-height: 1;
+      }
+      .item .mini:hover {
+        opacity: 1;
+      }
+      .item.pending {
+        color: var(--error-color, #db4437);
+      }
+      .backdrop {
+        position: absolute;
+        inset: 0;
+        z-index: 9;
+        background: rgba(0, 0, 0, 0.3);
+      }
+      @media (min-width: 768px) {
+        .backdrop {
+          display: none;
+        }
+      }
     `;
   }
 
@@ -294,6 +419,11 @@ class LiteLLMAssistChat extends LitElement {
     this._model = "";
     this._agent = "";
     this._unsub = null;
+    this._drawerOpen = false;
+    this._renaming = null;
+    this._renameVal = "";
+    this._pendingDel = null;
+    this._delTimer = null;
   }
 
   get t() {
@@ -350,6 +480,7 @@ class LiteLLMAssistChat extends LitElement {
             : (res.models[0] ?? "");
       }
       if (!this._agent && res.agents.length) this._agent = res.agents[0].entity_id;
+      this._drawerOpen = window.matchMedia("(min-width: 768px)").matches;
       await this._loadConvs();
     } catch (e) {
       this._error = `${this.t.modelsError}: ${e.message || e}`;
@@ -375,8 +506,137 @@ class LiteLLMAssistChat extends LitElement {
       conversation_id: id,
     });
     this._conv = res.conversation;
+    if (this._conv?.model && this._models.includes(this._conv.model)) {
+      this._model = this._conv.model;
+    }
+    if (this._conv?.agent_id && this._agents.some((a) => a.entity_id === this._conv.agent_id)) {
+      this._agent = this._conv.agent_id;
+    }
     this._error = "";
+    this._closeDrawerOnNarrow();
     this._scrollEnd();
+  }
+
+  _toggleDrawer() {
+    this._drawerOpen = !this._drawerOpen;
+  }
+
+  _closeDrawerOnNarrow() {
+    if (window.matchMedia("(max-width: 767px)").matches) this._drawerOpen = false;
+  }
+
+  _startRename(e, conv) {
+    e.stopPropagation();
+    this._renaming = conv.id;
+    this._renameVal = conv.title;
+  }
+
+  async _commitRename() {
+    const id = this._renaming;
+    const title = (this._renameVal || "").trim();
+    this._renaming = null;
+    if (!id || !title) return;
+    await this.hass.callWS({
+      type: "litellm_assist/conversations",
+      action: "update",
+      conversation_id: id,
+      data: { title },
+    });
+    await this._loadConvs();
+    if (this._conv?.id === id) this._conv = { ...this._conv, title };
+  }
+
+  async _deleteClick(e, conv) {
+    e.stopPropagation();
+    if (this._pendingDel !== conv.id) {
+      this._pendingDel = conv.id;
+      clearTimeout(this._delTimer);
+      this._delTimer = setTimeout(() => (this._pendingDel = null), 2500);
+      return;
+    }
+    clearTimeout(this._delTimer);
+    this._pendingDel = null;
+    await this.hass.callWS({
+      type: "litellm_assist/conversations",
+      action: "delete",
+      conversation_id: conv.id,
+    });
+    if (this._conv?.id === conv.id) this._conv = null;
+    await this._loadConvs();
+  }
+
+  _fmtDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) {
+      return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    }
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
+  _renderDrawer() {
+    return html`
+      <nav class="drawer ${this._drawerOpen ? "open" : ""}">
+        <div class="drawer-head">
+          ${this.t.chats}
+          <button
+            class="iconbtn"
+            title=${this.t.newChat}
+            style="margin-left:auto"
+            @click=${() => this._newConv()}
+          >
+            ＋
+          </button>
+        </div>
+        <div class="drawer-list">
+          ${this._convs.length === 0
+            ? html`<div class="empty" style="padding:12px;font-size:0.9em">${this.t.newChat}…</div>`
+            : nothing}
+          ${this._convs.map((c) => this._renderItem(c))}
+        </div>
+      </nav>
+    `;
+  }
+
+  _renderItem(c) {
+    const renaming = this._renaming === c.id;
+    const pending = this._pendingDel === c.id;
+    return html`
+      <div
+        class="item ${this._conv?.id === c.id ? "active" : ""} ${pending ? "pending" : ""}"
+        @click=${() => this._openConv(c.id)}
+      >
+        ${renaming
+          ? html`<input
+              .value=${this._renameVal}
+              @input=${(e) => (this._renameVal = e.target.value)}
+              @keydown=${(e) => {
+                if (e.key === "Enter") this._commitRename();
+                if (e.key === "Escape") this._renaming = null;
+              }}
+              @blur=${this._commitRename}
+            />`
+          : html`<span class="meta">
+              <div class="ctitle">${c.mode === "assist" ? "🏠" : "💬"} ${c.title}</div>
+              <div class="cdate">${this._fmtDate(c.updated)}</div>
+            </span>`}
+        <button
+          class="mini"
+          title=${this.t.rename}
+          @click=${(e) => this._startRename(e, c)}
+        >
+          ✎
+        </button>
+        <button
+          class="mini"
+          title=${pending ? this.t.delConfirm : this.t.del}
+          @click=${(e) => this._deleteClick(e, c)}
+        >
+          ${pending ? "✓" : "🗑"}
+        </button>
+      </div>
+    `;
   }
 
   async _newConv(mode) {
@@ -393,6 +653,7 @@ class LiteLLMAssistChat extends LitElement {
     this._conv = res.conversation;
     this._convs = [ { ...res.conversation, messages: undefined }, ...this._convs ];
     this._error = "";
+    this._closeDrawerOnNarrow();
   }
 
   async _setMode(mode) {
@@ -579,6 +840,13 @@ class LiteLLMAssistChat extends LitElement {
     return html`
       <div class="wrap" style=${this._heightStyle()}>
         <header>
+          <button
+            class="iconbtn"
+            title=${this.t.chats}
+            @click=${this._toggleDrawer}
+          >
+            ☰
+          </button>
           <span class="title">${this.config.title}</span>
           <select
             class="mode"
@@ -623,6 +891,12 @@ class LiteLLMAssistChat extends LitElement {
           </button>
         </header>
 
+        <div class="body">
+          ${this._drawerOpen
+            ? html`<div class="backdrop" @click=${this._toggleDrawer}></div>`
+            : nothing}
+          ${this._renderDrawer()}
+          <div class="chatcol">
         <div class="msgs">
           ${msgs.length === 0 && !streamingMsg && !this._assistBusy
             ? html`<div class="empty">${this.config.welcome ?? this.t.welcome}</div>`
@@ -663,6 +937,8 @@ class LiteLLMAssistChat extends LitElement {
           >
             ➤
           </button>
+        </div>
+          </div>
         </div>
       </div>
     `;
