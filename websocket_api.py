@@ -22,6 +22,7 @@ from .const import (
     WS_CANCEL_STREAM,
     WS_CONVERSATIONS,
     WS_MODELS,
+    WS_PREFS,
     WS_STREAM,
 )
 
@@ -47,6 +48,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_cancel_stream)
     websocket_api.async_register_command(hass, ws_assist_process)
     websocket_api.async_register_command(hass, ws_conversations)
+    websocket_api.async_register_command(hass, ws_prefs)
 
 
 # -- models ------------------------------------------------------------------
@@ -186,6 +188,7 @@ async def ws_stream(
                 }
             )
             await runtime.storage.async_update(user_id, conv_id, conv)
+            await runtime.storage.async_set_prefs(user_id, {"model": msg["model"]})
         connection.send_result(
             msg["id"], {"cancelled": cancel.is_set(), "message_count": len(conv["messages"])}
         )
@@ -261,7 +264,32 @@ async def ws_assist_process(
         }
     )
     await runtime.storage.async_update(user_id, conv["id"], conv)
+    await runtime.storage.async_set_prefs(user_id, {"agent": msg["agent_id"]})
     connection.send_result(msg["id"], payload)
+
+
+# -- prefs -------------------------------------------------------------------
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): WS_PREFS,
+        vol.Required("action"): vol.In(["get", "set"]),
+        vol.Optional("data"): dict,
+    }
+)
+@websocket_api.async_response
+async def ws_prefs(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Get or set per-user UI prefs (last model/agent)."""
+    runtime = _get_runtime(hass)
+    user_id = connection.user.id if connection.user else None
+    if msg["action"] == "get":
+        connection.send_result(msg["id"], await runtime.storage.async_get_prefs(user_id))
+        return
+    prefs = await runtime.storage.async_set_prefs(user_id, msg.get("data") or {})
+    connection.send_result(msg["id"], prefs)
 
 
 # -- conversations CRUD ------------------------------------------------------

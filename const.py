@@ -19,6 +19,7 @@ WS_STREAM = f"{WS_PREFIX}/stream"
 WS_CANCEL_STREAM = f"{WS_PREFIX}/cancel_stream"
 WS_ASSIST_PROCESS = f"{WS_PREFIX}/assist_process"
 WS_CONVERSATIONS = f"{WS_PREFIX}/conversations"
+WS_PREFS = f"{WS_PREFIX}/prefs"
 
 # Storage
 STORAGE_KEY = f"{DOMAIN}/conversations"

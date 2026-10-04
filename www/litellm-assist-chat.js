@@ -277,6 +277,20 @@ class LiteLLMAssistChat extends LitElement {
       const res = await this.hass.callWS({ type: "litellm_assist/models" });
       this._models = res.models;
       this._agents = res.agents;
+      const prefs = await this.hass.callWS({
+        type: "litellm_assist/prefs",
+        action: "get",
+      });
+      if (!this._model && prefs.model && this._models.includes(prefs.model)) {
+        this._model = prefs.model;
+      }
+      if (
+        !this._agent &&
+        prefs.agent &&
+        this._agents.some((a) => a.entity_id === prefs.agent)
+      ) {
+        this._agent = prefs.agent;
+      }
       if (!this._model) {
         this._model =
           this.config.default_model && this._models.includes(this.config.default_model)

@@ -69,6 +69,7 @@ class ChatStorage:
         if self._data is None:
             self._data = await self._store.async_load() or {"users": {}}
             self._data.setdefault("users", {})
+            self._data.setdefault("prefs", {})
         return self._data
 
     async def _save(self) -> None:
@@ -154,3 +155,19 @@ class ChatStorage:
         for conv_id, _ in by_age[: len(bucket) - max_convs]:
             LOGGER.debug("Pruning conversation %s", conv_id)
             del bucket[conv_id]
+
+    # -- prefs ---------------------------------------------------------------
+
+    async def async_get_prefs(self, user_id: str | None) -> dict[str, Any]:
+        """Return stored UI prefs for a user (model, agent, ...)."""
+        data = await self._ensure_loaded()
+        return dict(data["prefs"].get(user_id or SHARED_BUCKET, {}))
+
+    async def async_set_prefs(self, user_id: str | None, updates: dict[str, Any]) -> dict[str, Any]:
+        """Merge UI prefs for a user and persist."""
+        data = await self._ensure_loaded()
+        key = user_id or SHARED_BUCKET
+        prefs = data["prefs"].setdefault(key, {})
+        prefs.update(updates)
+        await self._save()
+        return dict(prefs)
