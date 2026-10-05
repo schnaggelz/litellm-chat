@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any
 
@@ -37,6 +38,9 @@ class ChatStorage:
         )
         self._entry = entry
         self._data: dict[str, Any] | None = None
+        # Serializes every mutation: multi-client sessions (browser + app with
+        # the same HA user) must never interleave read-modify-write cycles.
+        self._mu = asyncio.Lock()
 
     async def async_close(self) -> None:
         """Nothing buffered; every mutation saves immediately."""
@@ -74,7 +78,7 @@ class ChatStorage:
         return self._data
 
     async def _save(self) -> None:
-        """Persist current data."""
+        """Persist current data (caller must hold self._mu)."""
         await self._store.async_save(self._data)
 
     def _conv_meta(self, conv: dict[str, Any]) -> dict[str, Any]:
@@ -100,52 +104,82 @@ class ChatStorage:
         self, user_id: str | None, defaults: dict[str, Any]
     ) -> dict[str, Any]:
         """Create a conversation and return it."""
-        data = await self._ensure_loaded()
-        bucket = data["users"].setdefault(self._bucket(user_id), {})
-        conv_id = uuid.uuid4().hex[:12]
-        while conv_id in bucket:  # paranoia; space is huge
+        async with self._mu:
+            data = await self._ensure_loaded()
+            bucket = data["users"].setdefault(self._bucket(user_id), {})
             conv_id = uuid.uuid4().hex[:12]
-        conv: dict[str, Any] = {
-            "id": conv_id,
-            "title": defaults.get("title") or "New chat",
-            "mode": defaults.get("mode", "chat"),
-            "model": defaults.get("model"),
-            "agent_id": defaults.get("agent_id"),
-            "system_prompt": defaults.get("system_prompt"),
-            "messages": [],
-            "created": defaults.get("created"),
-            "updated": defaults.get("updated"),
-        }
-        bucket[conv_id] = conv
-        self._prune(bucket)
-        await self._save()
-        return conv
+            while conv_id in bucket:  # paranoia; space is huge
+                conv_id = uuid.uuid4().hex[:12]
+            conv: dict[str, Any] = {
+                "id": conv_id,
+                "title": defaults.get("title") or "New chat",
+                "mode": defaults.get("mode", "chat"),
+                "model": defaults.get("model"),
+                "agent_id": defaults.get("agent_id"),
+                "system_prompt": defaults.get("system_prompt"),
+                "messages": [],
+                "created": defaults.get("created"),
+                "updated": defaults.get("updated"),
+            }
+            bucket[conv_id] = conv
+            self._prune(bucket)
+            await self._save()
+            return {**conv, "messages": []}
 
     async def async_update(
         self, user_id: str | None, conv_id: str, updates: dict[str, Any]
     ) -> dict[str, Any] | None:
-        """Patch a conversation (title/model/mode/system_prompt/messages)."""
-        data = await self._ensure_loaded()
-        conv = data["users"].get(self._bucket(user_id), {}).get(conv_id)
-        if conv is None:
-            return None
-        for key in ("title", "mode", "model", "agent_id", "system_prompt", "updated"):
-            if key in updates:
-                conv[key] = updates[key]
-        if "messages" in updates:
-            conv["messages"] = updates["messages"]
-        await self._save()
-        return conv
+        """Patch a conversation (title/model/mode/system_prompt)."""
+        async with self._mu:
+            data = await self._ensure_loaded()
+            conv = data["users"].get(self._bucket(user_id), {}).get(conv_id)
+            if conv is None:
+                return None
+            for key in ("title", "mode", "model", "agent_id", "system_prompt", "updated"):
+                if key in updates:
+                    conv[key] = updates[key]
+            if "messages" in updates:
+                conv["messages"] = updates["messages"]
+            await self._save()
+            return {**conv}
 
     async def async_delete(self, user_id: str | None, conv_id: str) -> bool:
         """Delete a conversation; return True if it existed."""
-        data = await self._ensure_loaded()
-        bucket = data["users"].get(self._bucket(user_id), {})
-        if conv_id not in bucket:
-            return False
-        del bucket[conv_id]
-        await self._save()
-        return True
+        async with self._mu:
+            data = await self._ensure_loaded()
+            bucket = data["users"].get(self._bucket(user_id), {})
+            if conv_id not in bucket:
+                return False
+            del bucket[conv_id]
+            await self._save()
+            return True
+
+    async def async_append_message(
+        self,
+        user_id: str | None,
+        conv_id: str,
+        message: dict[str, Any],
+        title_if_new: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Atomically append one message (and optionally auto-title).
+
+        Safe across concurrent clients: re-reads inside the lock, so an
+        exchange streamed by one device cannot clobber the other's messages.
+        Returns the fresh conversation metadata, or None if it vanished.
+        """
+        async with self._mu:
+            data = await self._ensure_loaded()
+            conv = data["users"].get(self._bucket(user_id), {}).get(conv_id)
+            if conv is None:
+                return None
+            conv["messages"].append(message)
+            ts = message.get("ts")
+            if ts:
+                conv["updated"] = ts
+            if title_if_new and conv.get("title") in (None, "", "New chat"):
+                conv["title"] = title_if_new[:40]
+            await self._save()
+            return {"id": conv_id, "title": conv["title"], "updated": conv["updated"], "message_count": len(conv["messages"])}
 
     def _prune(self, bucket: dict[str, Any]) -> None:
         """Drop oldest conversations beyond the cap."""
@@ -166,12 +200,13 @@ class ChatStorage:
 
     async def async_set_prefs(self, user_id: str | None, updates: dict[str, Any]) -> dict[str, Any]:
         """Merge UI prefs for a user and persist."""
-        data = await self._ensure_loaded()
-        key = user_id or SHARED_BUCKET
-        prefs = data["prefs"].setdefault(key, {})
-        prefs.update(updates)
-        await self._save()
-        return dict(prefs)
+        async with self._mu:
+            data = await self._ensure_loaded()
+            key = user_id or SHARED_BUCKET
+            prefs = data["prefs"].setdefault(key, {})
+            prefs.update(updates)
+            await self._save()
+            return dict(prefs)
 
     # -- usage (proxy-reported cost only) -------------------------------------
 
@@ -179,26 +214,27 @@ class ChatStorage:
         self, user_id: str | None, model: str, usage: dict[str, Any]
     ) -> None:
         """Accumulate one exchange into the user's daily usage bucket."""
-        data = await self._ensure_loaded()
-        usage_root = data.setdefault("usage", {})
-        user_usage = usage_root.setdefault(user_id or SHARED_BUCKET, {})
-        day = dt_util.now().date().isoformat()
-        bucket = user_usage.setdefault(
-            day, {"in": 0, "out": 0, "cost": 0.0, "by_model": {}}
-        )
-        bucket["in"] += usage.get("prompt_tokens", 0)
-        bucket["out"] += usage.get("completion_tokens", 0)
-        cost = usage.get("cost")
-        if isinstance(cost, (int, float)):
-            bucket["cost"] = round(bucket["cost"] + cost, 6)
-        model_bucket = bucket["by_model"].setdefault(
-            model, {"in": 0, "out": 0, "cost": 0.0}
-        )
-        model_bucket["in"] += usage.get("prompt_tokens", 0)
-        model_bucket["out"] += usage.get("completion_tokens", 0)
-        if isinstance(cost, (int, float)):
-            model_bucket["cost"] = round(model_bucket["cost"] + cost, 6)
-        await self._save()
+        async with self._mu:
+            data = await self._ensure_loaded()
+            usage_root = data.setdefault("usage", {})
+            user_usage = usage_root.setdefault(user_id or SHARED_BUCKET, {})
+            day = dt_util.now().date().isoformat()
+            bucket = user_usage.setdefault(
+                day, {"in": 0, "out": 0, "cost": 0.0, "by_model": {}}
+            )
+            bucket["in"] += usage.get("prompt_tokens", 0)
+            bucket["out"] += usage.get("completion_tokens", 0)
+            cost = usage.get("cost")
+            if isinstance(cost, (int, float)):
+                bucket["cost"] = round(bucket["cost"] + cost, 6)
+            model_bucket = bucket["by_model"].setdefault(
+                model, {"in": 0, "out": 0, "cost": 0.0}
+            )
+            model_bucket["in"] += usage.get("prompt_tokens", 0)
+            model_bucket["out"] += usage.get("completion_tokens", 0)
+            if isinstance(cost, (int, float)):
+                model_bucket["cost"] = round(model_bucket["cost"] + cost, 6)
+            await self._save()
 
     async def async_get_usage(self) -> dict[str, Any]:
         """Return the whole usage tree (all users, all days)."""

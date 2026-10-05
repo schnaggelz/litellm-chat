@@ -129,12 +129,17 @@ async def ws_stream(
 
     # Persist the user message first so history survives a failed request.
     now = _now()
-    user_msg = {"role": "user", "content": msg["text"], "ts": now}
-    conv["messages"].append(user_msg)
-    if conv.get("title") in (None, "", "New chat"):
-        conv["title"] = msg["text"][:40]
-    conv["updated"] = now
-    await runtime.storage.async_update(user_id, conv_id, conv)
+    meta = await runtime.storage.async_append_message(
+        user_id,
+        conv_id,
+        {"role": "user", "content": msg["text"], "ts": now},
+        title_if_new=msg["text"],
+    )
+    if meta is None:
+        connection.send_error(
+            msg["id"], "litellm_assist_not_found", f"conversation {conv_id} vanished"
+        )
+        return
 
     messages = [
         {"role": m["role"], "content": m["content"]}
@@ -169,16 +174,17 @@ async def ws_stream(
         except LiteLLMAPIError as err:
             # Keep whatever the model produced before failing.
             if assistant_content:
-                conv["messages"].append(
+                await runtime.storage.async_append_message(
+                    user_id,
+                    conv_id,
                     {
                         "role": "assistant",
                         "content": "".join(assistant_content),
                         "ts": _now(),
                         "model": msg["model"],
                         "error": True,
-                    }
+                    },
                 )
-                await runtime.storage.async_update(user_id, conv_id, conv)
             connection.send_error(msg["id"], "litellm_assist_error", str(err))
             return
         if cancel.is_set():
@@ -192,15 +198,18 @@ async def ws_stream(
             }
             if usage_accum is not None:
                 msg_record["usage"] = {
-                    k: usage_accum[k] for k in ("prompt_tokens", "completion_tokens", "cost") if k in usage_accum
+                    k: usage_accum[k]
+                    for k in ("prompt_tokens", "completion_tokens", "cost")
+                    if k in usage_accum
                 }
+            await runtime.storage.async_append_message(user_id, conv_id, msg_record)
+            if usage_accum is not None:
                 await runtime.storage.async_add_usage(user_id, msg["model"], usage_accum)
                 async_dispatcher_send(hass, SIGNAL_USAGE_UPDATED)
-            conv["messages"].append(msg_record)
-            await runtime.storage.async_update(user_id, conv_id, conv)
             await runtime.storage.async_set_prefs(user_id, {"model": msg["model"]})
         connection.send_result(
-            msg["id"], {"cancelled": cancel.is_set(), "message_count": len(conv["messages"])}
+            msg["id"],
+            {"cancelled": cancel.is_set(), "message_count": meta["message_count"]},
         )
     except LiteLLMAPIError as err:
         connection.send_error(msg["id"], "litellm_assist_error", str(err))
@@ -253,9 +262,17 @@ async def ws_assist_process(
         return
 
     now = _now()
-    conv["messages"].append({"role": "user", "content": msg["text"], "ts": now})
-    conv["updated"] = now
-    await runtime.storage.async_update(user_id, conv["id"], conv)
+    meta = await runtime.storage.async_append_message(
+        user_id,
+        conv["id"],
+        {"role": "user", "content": msg["text"], "ts": now},
+        title_if_new=msg["text"],
+    )
+    if meta is None:
+        connection.send_error(
+            msg["id"], "litellm_assist_not_found", "conversation vanished"
+        )
+        return
 
     result = await async_converse(
         hass=hass,
@@ -265,15 +282,19 @@ async def ws_assist_process(
         agent_id=msg["agent_id"],
     )
     payload = result.as_dict()
-    conv["messages"].append(
+    meta = await runtime.storage.async_append_message(
+        user_id,
+        conv["id"],
         {
             "role": "assistant",
             "content": payload.get("speech", {}).get("plain", {}).get("speech", ""),
             "ts": _now(),
             "agent_id": msg["agent_id"],
-        }
+        },
     )
-    await runtime.storage.async_update(user_id, conv["id"], conv)
+    if meta is None:
+        connection.send_error(msg["id"], "litellm_assist_not_found", "conversation vanished")
+        return
     await runtime.storage.async_set_prefs(user_id, {"agent": msg["agent_id"]})
     connection.send_result(msg["id"], payload)
 
