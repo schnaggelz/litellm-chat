@@ -28,6 +28,7 @@ const STRINGS = {
     rename: "Rename",
     del: "Delete",
     delConfirm: "Delete?",
+    clearAll: "Clear all",
     usageTotal: "Today",
   },
   de: {
@@ -47,6 +48,7 @@ const STRINGS = {
     rename: "Umbenennen",
     del: "Löschen",
     delConfirm: "Löschen?",
+    clearAll: "Alle löschen",
     usageTotal: "Heute",
   },
 };
@@ -410,6 +412,9 @@ class LiteLLMAssistChat extends LitElement {
       .item.pending {
         color: var(--error-color, #db4437);
       }
+      .iconbtn.clearPending {
+        color: var(--error-color, #db4437);
+      }
       .backdrop {
         position: absolute;
         inset: 0;
@@ -443,6 +448,8 @@ class LiteLLMAssistChat extends LitElement {
     this._renameVal = "";
     this._pendingDel = null;
     this._delTimer = null;
+    this._pendingClear = false;
+    this._clearTimer = null;
   }
 
   get t() {
@@ -565,6 +572,25 @@ class LiteLLMAssistChat extends LitElement {
     if (this._conv?.id === id) this._conv = { ...this._conv, title };
   }
 
+  async _clearAll() {
+    if (!this._pendingClear) {
+      this._pendingClear = true;
+      clearTimeout(this._clearTimer);
+      this._clearTimer = setTimeout(() => (this._pendingClear = false), 3000);
+      return;
+    }
+    clearTimeout(this._clearTimer);
+    this._pendingClear = false;
+    const res = await this.hass.callWS({
+      type: "litellm_assist/conversations",
+      action: "clear",
+    });
+    this._conv = null;
+    await this._loadConvs();
+    // eslint-disable-next-line no-console
+    console.debug("litellm_assist cleared", res.removed);
+  }
+
   async _deleteClick(e, conv) {
     e.stopPropagation();
     if (this._pendingDel !== conv.id) {
@@ -600,9 +626,16 @@ class LiteLLMAssistChat extends LitElement {
         <div class="drawer-head">
           ${this.t.chats}
           <button
+            class="iconbtn ${this._pendingClear ? "clearPending" : ""}"
+            style="margin-left:auto"
+            title=${this._pendingClear ? this.t.delConfirm : this.t.clearAll}
+            @click=${this._clearAll}
+          >
+            ${this._pendingClear ? "✓" : "🗑"}
+          </button>
+          <button
             class="iconbtn"
             title=${this.t.newChat}
-            style="margin-left:auto"
             @click=${() => this._newConv()}
           >
             ＋

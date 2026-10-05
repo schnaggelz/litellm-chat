@@ -154,6 +154,17 @@ class ChatStorage:
             await self._save()
             return True
 
+    async def async_clear(self, user_id: str | None) -> int:
+        """Delete all conversations of a user; return how many were removed."""
+        async with self._mu:
+            data = await self._ensure_loaded()
+            bucket = data["users"].get(self._bucket(user_id), {})
+            count = len(bucket)
+            if count:
+                bucket.clear()
+                await self._save()
+            return count
+
     async def async_append_message(
         self,
         user_id: str | None,

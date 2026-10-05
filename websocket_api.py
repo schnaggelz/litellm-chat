@@ -329,7 +329,9 @@ async def ws_prefs(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): WS_CONVERSATIONS,
-        vol.Required("action"): vol.In(["list", "get", "create", "update", "delete"]),
+        vol.Required("action"): vol.In(
+            ["list", "get", "create", "update", "delete", "clear"]
+        ),
         vol.Optional("conversation_id"): str,
         vol.Optional("data"): dict,
     }
@@ -363,7 +365,11 @@ async def ws_conversations(
         conv = await storage.async_update(user_id, conv_id, data)
         connection.send_result(msg["id"], {"conversation": conv})
         return
-    # delete
+    # delete or clear
+    if action == "clear":
+        removed = await storage.async_clear(user_id)
+        connection.send_result(msg["id"], {"removed": removed})
+        return
     deleted = await storage.async_delete(user_id, conv_id)
     connection.send_result(msg["id"], {"deleted": deleted})
 
