@@ -283,6 +283,7 @@ class LiteLLMAssistChat extends LitElement {
         color: var(--primary-color);
         font-size: 18px;
         line-height: 1;
+        touch-action: manipulation;
       }
       @media (pointer: coarse) {
         .iconbtn {
@@ -357,6 +358,7 @@ class LiteLLMAssistChat extends LitElement {
         padding: 8px 10px;
         border-radius: 10px;
         cursor: pointer;
+        touch-action: manipulation;
       }
       .item:hover {
         background: var(--secondary-background-color, rgba(128, 128, 128, 0.15));
@@ -400,6 +402,7 @@ class LiteLLMAssistChat extends LitElement {
         border-radius: 6px;
         font-size: 14px;
         line-height: 1;
+        touch-action: manipulation;
       }
       .item .mini:hover {
         opacity: 1;
