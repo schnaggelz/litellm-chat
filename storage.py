@@ -92,7 +92,7 @@ class ChatStorage:
         data = await self._ensure_loaded()
         bucket = data["users"].get(self._bucket(user_id), {})
         metas = [self._conv_meta(conv) for conv in bucket.values()]
-        metas.sort(key=lambda c: c.get("updated", ""), reverse=True)
+        metas.sort(key=lambda c: c.get("updated") or "", reverse=True)
         return metas
 
     async def async_get(self, user_id: str | None, conv_id: str) -> dict | None:
@@ -118,8 +118,8 @@ class ChatStorage:
                 "agent_id": defaults.get("agent_id"),
                 "system_prompt": defaults.get("system_prompt"),
                 "messages": [],
-                "created": defaults.get("created"),
-                "updated": defaults.get("updated"),
+                "created": defaults.get("created") or dt_util.now().isoformat(),
+                "updated": defaults.get("updated") or dt_util.now().isoformat(),
             }
             bucket[conv_id] = conv
             self._prune(bucket)
