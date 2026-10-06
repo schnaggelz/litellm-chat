@@ -33,6 +33,7 @@ CONF_MAX_CONVERSATIONS = "max_conversations"
 CONF_PER_USER_HISTORY = "per_user_history"
 CONF_DEFAULT_MODE = "default_mode"
 CONF_DEFAULT_SYSTEM_PROMPT = "default_system_prompt"
+CONF_MODEL_WHITELIST = "model_whitelist"
 
 DEFAULT_MAX_CONVERSATIONS = 50
 DEFAULT_PER_USER_HISTORY = True

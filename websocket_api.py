@@ -86,6 +86,10 @@ async def ws_models(
     except LiteLLMAPIError as err:
         connection.send_error(msg["id"], "litellm_assist_error", str(err))
         return
+    whitelist = runtime.entry.options.get("model_whitelist") or []
+    if whitelist:
+        allowed = set(whitelist)
+        models = [m for m in models if m["id"] in allowed]
     connection.send_result(msg["id"], {"agents": agents, "models": models})
 
 

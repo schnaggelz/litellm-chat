@@ -19,13 +19,15 @@
           "default_mode": "Standardmodus für neue Unterhaltungen",
           "per_user_history": "Chat-Verlauf pro HA-Benutzer trennen",
           "max_conversations": "Maximale Anzahl Unterhaltungen pro Benutzer",
-          "default_system_prompt": "Standard-Systemprompt (Chat-Modus)"
+          "default_system_prompt": "Standard-Systemprompt (Chat-Modus)",
+          "model_whitelist": "Modelle im Chat anzeigen (leer = alle)"
         },
         "data_description": {
           "default_mode": "Chat streamt mit jedem LiteLLM-Modell; Assist läuft über deine Konversations-Agenten mit Haussteuerung.",
           "per_user_history": "Wenn deaktiviert, teilen sich alle Benutzer einen Verlauf.",
           "max_conversations": "Älteste Unterhaltungen werden oberhalb dieses Limits gelöscht.",
-          "default_system_prompt": "Persona/Systemprompt für Chat-Modus-Unterhaltungen (Assist-Modus nutzt den Prompt des jeweiligen Agenten)."
+          "default_system_prompt": "Persona/Systemprompt für Chat-Modus-Unterhaltungen (Assist-Modus nutzt den Prompt des jeweiligen Agenten).",
+          "model_whitelist": "Nur die gewählten Modelle erscheinen im Modellpicker; leer = alle Proxy-Modelle. 🏠 = lokale Ollama-Modelle, die sich einen GPU-Host teilen."
         }
       }
     }

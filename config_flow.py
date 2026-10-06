@@ -22,6 +22,7 @@ from .const import (
     CONF_DEFAULT_MODE,
     CONF_DEFAULT_SYSTEM_PROMPT,
     CONF_MAX_CONVERSATIONS,
+    CONF_MODEL_WHITELIST,
     CONF_PER_USER_HISTORY,
     DEFAULT_MAX_CONVERSATIONS,
     DEFAULT_PER_USER_HISTORY,
@@ -33,7 +34,35 @@ MODE_OPTIONS = [
     SelectOptionDict(value="assist", label="Assist (home control)"),
 ]
 
-OPTIONS_SCHEMA = vol.Schema(
+
+async def _model_options(client) -> list[SelectOptionDict]:
+    """Model options for the whitelist selector (remote first)."""
+    from .api import list_models
+
+    try:
+        models = await list_models(client)
+    except Exception:
+        return []
+    return [
+        SelectOptionDict(
+            value=m["id"],
+            label=("🏠 " if m.get("local") else "☁ ") + m["id"],
+        )
+        for m in models
+    ]
+
+
+def _litellm_client(hass):
+    """Return the client of a loaded core litellm entry, if any."""
+    from homeassistant.config_entries import ConfigEntryState
+
+    for entry in hass.config_entries.async_entries("litellm"):
+        if entry.state is ConfigEntryState.LOADED and entry.runtime_data is not None:
+            return entry.runtime_data.client
+    return None
+
+
+BASE_OPTIONS_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_DEFAULT_MODE, default="chat"): SelectSelector(
             SelectSelectorConfig(options=MODE_OPTIONS, mode=SelectSelectorMode.DROPDOWN)
@@ -81,11 +110,27 @@ class LiteLLMAssistOptionsFlowHandler(config_entries.OptionsFlow):
     ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
+            if not user_input.get(CONF_MODEL_WHITELIST):
+                user_input.pop(CONF_MODEL_WHITELIST, None)
             return self.async_create_entry(data=user_input)
+
+        schema = BASE_OPTIONS_SCHEMA
+        if client := _litellm_client(self.hass):
+            schema = schema.extend(
+                {
+                    vol.Optional(CONF_MODEL_WHITELIST): SelectSelector(
+                        SelectSelectorConfig(
+                            options=await _model_options(client),
+                            mode=SelectSelectorMode.LIST,
+                            multiple=True,
+                        )
+                    )
+                }
+            )
 
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
-                OPTIONS_SCHEMA, self.config_entry.options
+                schema, self.config_entry.options
             ),
         )

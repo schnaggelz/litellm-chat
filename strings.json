@@ -19,13 +19,15 @@
           "default_mode": "Default mode for new conversations",
           "per_user_history": "Keep chat history separate per HA user",
           "max_conversations": "Maximum conversations kept per user",
-          "default_system_prompt": "Default system prompt (Chat mode)"
+          "default_system_prompt": "Default system prompt (Chat mode)",
+          "model_whitelist": "Models shown in the chat (empty = all)"
         },
         "data_description": {
           "default_mode": "Chat streams with any LiteLLM model; Assist routes through your conversation agents with home control.",
           "per_user_history": "When disabled, all users share one history.",
           "max_conversations": "Oldest conversations are pruned beyond this limit.",
-          "default_system_prompt": "Persona/system prompt applied to Chat mode conversations (Assist mode uses each agent's own prompt)."
+          "default_system_prompt": "Persona/system prompt applied to Chat mode conversations (Assist mode uses each agent's own prompt).",
+          "model_whitelist": "Only the selected models appear in the chat's model picker; leave empty to offer all proxy models. Tagged 🏠 = local Ollama models that share one GPU host."
         }
       }
     }
