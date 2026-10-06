@@ -907,6 +907,7 @@ class LiteLLMAssistChat extends LitElement {
   }
 
   _modelLabel(m) {
+    if (typeof m === "string") return m;
     const size = /(\d+(?:\.\d+)?)b[^b]*$/i.exec(m.id);
     const big = m.local && size && parseFloat(size[1]) >= 9;
     const tag = big ? "⚠️" : m.local ? "🏠" : "☁";

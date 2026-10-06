@@ -10,7 +10,8 @@ LOGGER = logging.getLogger(LOGGER_NAME)
 # Static asset served to the frontend (registered via hass.http)
 STATIC_URL = "/litellm_assist"
 STATIC_PATH = "www"
-CARD_RESOURCE_URL = f"{STATIC_URL}/litellm-assist-chat.js"
+CARD_FILE = f"{STATIC_URL}/litellm-assist-chat.js"
+CARD_RESOURCE_URL = f"{CARD_FILE}?v=0.2.1"  # bump version → cache-busts all clients
 
 # WS command prefixes
 WS_PREFIX = "litellm_assist"

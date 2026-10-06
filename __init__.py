@@ -149,8 +149,13 @@ async def _register_lovelace_resource(hass: HomeAssistant) -> None:
 
     collection = lovelace_data.resources
     await collection.async_get_info()  # forces load
+    base = CARD_RESOURCE_URL.split("?")[0]
     for item in collection.async_items():
-        if item.get("url") == CARD_RESOURCE_URL:
-            return  # already registered
+        if item.get("url", "").split("?")[0] == base:
+            if item["url"] == CARD_RESOURCE_URL:
+                return  # already current
+            await collection.async_update_item(item["id"], {"url": CARD_RESOURCE_URL})
+            LOGGER.info("Updated Lovelace resource to %s", CARD_RESOURCE_URL)
+            return
     await collection.async_create_item({"res_type": "module", "url": CARD_RESOURCE_URL})
     LOGGER.info("Registered Lovelace resource %s", CARD_RESOURCE_URL)

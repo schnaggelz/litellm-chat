@@ -29,8 +29,13 @@ async def list_models(client: Any) -> list[dict[str, Any]]:
 
     info_map: dict[str, dict[str, Any]] = {}
     try:
-        info = await client.get("/model/info")
-        for m in info.get("data") or []:
+        # openai SDK's .get() requires cast_to; use its shared httpx transport.
+        resp = await client._client.get(
+            str(client.base_url).rstrip("/") + "/model/info",
+            headers={"Authorization": f"Bearer {client.api_key}"},
+        )
+        resp.raise_for_status()
+        for m in resp.json().get("data") or []:
             lp = m.get("litellm_params") or {}
             api_base = str(lp.get("api_base") or "")
             provider = str((m.get("model_info") or {}).get("provider") or "")
