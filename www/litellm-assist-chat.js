@@ -489,7 +489,7 @@ class LiteLLMAssistChat extends LitElement {
         type: "litellm_assist/prefs",
         action: "get",
       });
-      if (!this._model && prefs.model && this._models.includes(prefs.model)) {
+      if (!this._model && prefs.model && this._models.some((m) => m.id === prefs.model)) {
         this._model = prefs.model;
       }
       if (
@@ -501,9 +501,9 @@ class LiteLLMAssistChat extends LitElement {
       }
       if (!this._model) {
         this._model =
-          this.config.default_model && this._models.includes(this.config.default_model)
+          this.config.default_model && this._models.some((m) => m.id === this.config.default_model)
             ? this.config.default_model
-            : (res.models[0] ?? "");
+            : (this._models[0]?.id ?? "");
       }
       if (!this._agent && res.agents.length) this._agent = res.agents[0].entity_id;
       this._drawerOpen = window.matchMedia("(min-width: 768px)").matches;
@@ -532,7 +532,7 @@ class LiteLLMAssistChat extends LitElement {
       conversation_id: id,
     });
     this._conv = res.conversation;
-    if (this._conv?.model && this._models.includes(this._conv.model)) {
+    if (this._conv?.model && this._models.some((m) => m.id === this._conv.model)) {
       this._model = this._conv.model;
     }
     if (this._conv?.agent_id && this._agents.some((a) => a.entity_id === this._conv.agent_id)) {
@@ -906,6 +906,14 @@ class LiteLLMAssistChat extends LitElement {
     return `${tokens}${cost} · ${this.t.usageTotal}: ${todayVal}`;
   }
 
+  _modelLabel(m) {
+    const size = /(\d+(?:\.\d+)?)b[^b]*$/i.exec(m.id);
+    const big = m.local && size && parseFloat(size[1]) >= 9;
+    const tag = big ? "⚠️" : m.local ? "🏠" : "☁";
+    const ctx = m.ctx ? ` · ${Math.round(m.ctx / 1024)}k` : "";
+    return `${tag} ${m.id}${ctx}`;
+  }
+
   _bubble(msg, streaming) {
     const usage = !streaming ? this._usageLabel(msg) : "";
     return html`<div class="row ${msg.role}">
@@ -959,7 +967,7 @@ class LiteLLMAssistChat extends LitElement {
                 ?disabled=${busy}
               >
                 ${this._models.map(
-                  (m) => html`<option value=${m} ?selected=${m === this._model}>${m}</option>`
+                  (m) => html`<option value=${m.id} ?selected=${m.id === this._model}>${this._modelLabel(m)}</option>`
                 )}
               </select>`
             : html`<select

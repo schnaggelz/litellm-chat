@@ -17,17 +17,41 @@ class LiteLLMAPIError(HomeAssistantError):
     """Error talking to the LiteLLM proxy."""
 
 
-async def list_models(client: Any) -> list[str]:
-    """Return sorted model ids offered by the proxy."""
+async def list_models(client: Any) -> list[dict[str, Any]]:
+    """Return model ids enriched with local/ctx info from /model/info."""
     try:
-        page = await client.models.list()
-        models = {model.id async for model in page}
+        raw = {m.id async for m in await client.models.list()}
     except asyncio.CancelledError:
         raise
     except Exception as err:
         LOGGER.exception("Listing models failed")
         raise LiteLLMAPIError(f"Could not list models: {err}") from err
-    return sorted(models)
+
+    info_map: dict[str, dict[str, Any]] = {}
+    try:
+        info = await client.get("/model/info")
+        for m in info.get("data") or []:
+            lp = m.get("litellm_params") or {}
+            api_base = str(lp.get("api_base") or "")
+            provider = str((m.get("model_info") or {}).get("provider") or "")
+            info_map[m.get("model_name")] = {
+                "local": "11434" in api_base or "ollama" in provider.lower(),
+                "ctx": (m.get("model_info") or {}).get("max_input_tokens"),
+            }
+    except asyncio.CancelledError:
+        raise
+    except Exception as err:  # info is optional; ids without info stay plain
+        LOGGER.debug("/model/info unavailable: %s", err)
+
+    def _entry(mid: str) -> dict[str, Any]:
+        base = {"id": mid, "local": False, "ctx": None}
+        base.update(info_map.get(mid, {}))
+        return base
+
+    entries = [_entry(mid) for mid in sorted(raw)]
+    # Remote models first: local ones hog the shared GPU host.
+    entries.sort(key=lambda e: e["local"])
+    return entries
 
 
 async def stream_chat(
