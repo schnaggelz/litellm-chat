@@ -54,9 +54,16 @@ class LiteLLMAssistUsageSensor(SensorEntity):
 
     @property
     def native_value(self) -> float:
-        """Today's cost (sum over users), proxy-reported only."""
-        today = dt_util.now().date().isoformat()
-        return round(self._bucket_cost(today), 4)
+        """This month's cost (sum over users), proxy-reported only."""
+        month_prefix = dt_util.now().date().isoformat()[:7]
+        return round(
+            sum(
+                self._bucket_cost(b)
+                for day, b in self._buckets().items()
+                if day.startswith(month_prefix)
+            ),
+            4,
+        )
 
     @property
     def native_unit_of_measurement(self) -> str | None:
