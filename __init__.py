@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant
 from .const import (
     CARD_RESOURCE_URL,
     LOGGER,
+    PANEL_RESOURCE_URL,
     STATIC_PATH,
     STATIC_URL,
 )
@@ -127,7 +128,7 @@ async def _register_sidebar_panel(hass: HomeAssistant) -> None:
         webcomponent_name="litellm-assist-panel",
         sidebar_title="Chat",
         sidebar_icon="mdi:star-face",
-        module_url=f"{STATIC_URL}/litellm-assist-panel.js",
+        module_url=PANEL_RESOURCE_URL,
         require_admin=False,
     )
     LOGGER.info("Registered sidebar panel")
