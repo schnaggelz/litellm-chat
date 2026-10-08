@@ -11,8 +11,8 @@ LOGGER = logging.getLogger(LOGGER_NAME)
 STATIC_URL = "/litellm_assist"
 STATIC_PATH = "www"
 CARD_FILE = f"{STATIC_URL}/litellm-assist-chat.js"
-CARD_RESOURCE_URL = f"{CARD_FILE}?v=0.2.1"  # bump version → cache-busts all clients
-PANEL_RESOURCE_URL = f"{STATIC_URL}/litellm-assist-panel.js?v=0.2.1"
+CARD_RESOURCE_URL = f"{CARD_FILE}?v=0.2.2"  # bump version → cache-busts all clients
+PANEL_RESOURCE_URL = f"{STATIC_URL}/litellm-assist-panel.js?v=0.2.2"
 
 # WS command prefixes
 WS_PREFIX = "litellm_assist"

@@ -5,7 +5,7 @@
  * imports the card module (which imports the vendored lit bundle).
  */
 import { LitElement, html, css, nothing } from "./lit.js";
-import "./litellm-assist-chat.js?v=0.2.1"; // bump together with const.CARD_RESOURCE_URL
+import "./litellm-assist-chat.js?v=0.2.2"; // bump together with const.CARD_RESOURCE_URL
 
 const MENU_ICON =
   "M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z"; // mdi:menu
